@@ -1,71 +1,49 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import {
+  useGetTodosByUserQuery,
+  useAddTodoMutation,
+  useDeleteTodoMutation,
+  useUpdateTodoMutation,
+} from '../features/todoApi';
 
 function TodoList({ userId, onLogout }) {
-  const [todos, setTodos] = useState([]);
   const [newTodo, setNewTodo] = useState('');
   const [editingTodo, setEditingTodo] = useState(null);
 
-  useEffect(() => {
-    const fetchTodos = async () => {
-      try {
-        const response = await fetch(`https://66d012f0181d059277dd1d11.mockapi.io/Todos?userid=${userId}`);
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          setTodos(data);
-        } else {
-          setTodos([]);
-        }
-      } catch (error) {
-        console.error('Error fetching todos:', error);
-        setTodos([]);
-      }
-    };
+  const { data: todos = [], refetch } = useGetTodosByUserQuery(userId);
+  const [addTodo] = useAddTodoMutation();
+  const [deleteTodo] = useDeleteTodoMutation();
+  const [updateTodo] = useUpdateTodoMutation();
 
-    fetchTodos();
-  }, [userId]);
-
-  const addTodo = async () => {
+  const handleAddTodo = async () => {
     try {
-      const response = await fetch(`https://66d012f0181d059277dd1d11.mockapi.io/Todos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newTodo,
-          userid: userId,
-          completed: false,
-          description: '',
-        }),
-      });
-      const todo = await response.json();
-      if (todo && todo.id) {
-        setTodos([...todos, todo]);
-      }
+      await addTodo({
+        title: newTodo,
+        userid: userId,
+        completed: false,
+        description: '',
+      }).unwrap();
+      setNewTodo('');
+      refetch();
     } catch (error) {
       console.error('Error adding todo:', error);
     }
   };
 
-  const deleteTodo = async (id) => {
+  const handleDeleteTodo = async (id) => {
     try {
-      await fetch(`https://66d012f0181d059277dd1d11.mockapi.io/Todos/${id}`, {
-        method: 'DELETE',
-      });
-      setTodos(todos.filter((todo) => todo.id !== id));
+      await deleteTodo(id).unwrap();
+      refetch();
     } catch (error) {
       console.error('Error deleting todo:', error);
     }
   };
 
-  const updateTodo = async (id, updatedFields) => {
+  const handleUpdateTodo = async (id, updatedFields) => {
     try {
-      const response = await fetch(`https://66d012f0181d059277dd1d11.mockapi.io/Todos/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedFields),
-      });
-      const updatedTodo = await response.json();
-      setTodos(todos.map((todo) => (todo.id === id ? updatedTodo : todo)));
+      await updateTodo({ id, ...updatedFields }).unwrap();
       setEditingTodo(null);
+      refetch();
     } catch (error) {
       console.error('Error updating todo:', error);
     }
@@ -74,7 +52,7 @@ function TodoList({ userId, onLogout }) {
   const toggleComplete = async (id) => {
     const todo = todos.find((todo) => todo.id === id);
     if (todo) {
-      await updateTodo(id, { ...todo, completed: !todo.completed });
+      await handleUpdateTodo(id, { ...todo, completed: !todo.completed });
     }
   };
 
@@ -88,13 +66,13 @@ function TodoList({ userId, onLogout }) {
         onChange={(e) => setNewTodo(e.target.value)}
         placeholder="New Todo"
       />
-      <button onClick={addTodo}>Add Todo</button>
+      <button onClick={handleAddTodo}>Add Todo</button>
       <ul>
         {Array.isArray(todos) && todos.length > 0 ? (
           todos.map((todo) => (
             <li key={todo.id}>
               {todo.title} {todo.completed ? '(Completed)' : ''}
-              <button onClick={() => deleteTodo(todo.id)}>Delete</button>
+              <button onClick={() => handleDeleteTodo(todo.id)}>Delete</button>
               <button onClick={() => toggleComplete(todo.id)}>Toggle Complete</button>
               <button onClick={() => setEditingTodo(todo)}>Edit</button>
               {editingTodo && editingTodo.id === todo.id && (
@@ -104,7 +82,7 @@ function TodoList({ userId, onLogout }) {
                     value={editingTodo.title}
                     onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
                   />
-                  <button onClick={() => updateTodo(editingTodo.id, editingTodo)}>Save</button>
+                  <button onClick={() => handleUpdateTodo(editingTodo.id, editingTodo)}>Save</button>
                 </div>
               )}
             </li>
